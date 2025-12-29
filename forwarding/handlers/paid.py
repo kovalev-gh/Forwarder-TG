@@ -3,12 +3,19 @@ from telethon.tl.types import (
     MessageExtendedMediaPreview,
 )
 
-from core.client import client
 from core.ids_map import id_map
 from core.logger import logger, tag
+from forwarding.media_sender import send_text  # ← ДОБАВИЛИ
 
 
-async def handle_paid(msg, final_text, final_entities, reply_to, target_chat):
+async def handle_paid(
+    msg,
+    final_text,
+    final_entities,
+    reply_ctx,
+    target_chat,
+    target_topic_id=None,  # ← оставили для совместимости
+):
     """
     Обработчик платного контента (PaidMedia).
 
@@ -27,11 +34,12 @@ async def handle_paid(msg, final_text, final_entities, reply_to, target_chat):
         logger.warning(f"{paid_tag} │ locked (no access)")
 
         stub = final_text + "\n\n⚠ Контент доступен только за звезды."
-        sent = await client.send_message(
-            target_chat,
-            stub,
-            reply_to=reply_to,
-            formatting_entities=final_entities,
+
+        sent = await send_text(
+            chat_id=target_chat,
+            text=stub,
+            entities=final_entities,
+            reply_ctx=reply_ctx,
         )
 
         if sent:
@@ -45,11 +53,12 @@ async def handle_paid(msg, final_text, final_entities, reply_to, target_chat):
         logger.warning(f"{paid_tag} │ preview only (no media)")
 
         stub = final_text + "\n\n⚠ Контент доступен только за звезды."
-        sent = await client.send_message(
-            target_chat,
-            stub,
-            reply_to=reply_to,
-            formatting_entities=final_entities,
+
+        sent = await send_text(
+            chat_id=target_chat,
+            text=stub,
+            entities=final_entities,
+            reply_ctx=reply_ctx,
         )
 
         if sent:

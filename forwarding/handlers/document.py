@@ -7,6 +7,8 @@ from core.client import client
 from core.logger import logger, tag
 from core.progress import make_progress
 
+from forwarding.media_sender import send_text  # ← ДОБАВИЛИ
+
 from utils.media import (
     prepare_generic_file,
     cleanup_file,
@@ -17,7 +19,14 @@ from utils.caption_policy import apply_caption_policy
 from config.settings import DOWNLOAD_DIR, DELETE_FILES_AFTER_SEND
 
 
-async def handle_document(msg, final_text, final_entities, reply_to, target_chat):
+async def handle_document(
+    msg,
+    final_text,
+    final_entities,
+    reply_ctx,
+    target_chat,
+    target_topic_id=None,  # ← оставили для совместимости
+):
     """
     Обработчик DOCUMENT.
 
@@ -105,12 +114,18 @@ async def handle_document(msg, final_text, final_entities, reply_to, target_chat
             f"{file_tag} │ uploading"
         )
 
+        # Для send_file тут доступен только reply_to=int.
+        # Поэтому берём "конкретный родитель или корень темы" из reply_ctx.
+        send_reply_to = None
+        if reply_ctx:
+            send_reply_to = reply_ctx.reply_to_msg_id or reply_ctx.top_msg_id
+
         sent = await client.send_file(
             target_chat,
             media.path,
             caption=caption,
             formatting_entities=caption_entities,
-            reply_to=reply_to,
+            reply_to=send_reply_to,
             force_document=True,
             progress_callback=ul_progress,
         )
@@ -128,11 +143,19 @@ async def handle_document(msg, final_text, final_entities, reply_to, target_chat
         # SEND EXTRA TEXT BELOW (IF ANY)
         # -------------------------------------------------
         if sent and extra_text:
-            await client.send_message(
-                target_chat,
-                extra_text,
-                formatting_entities=extra_entities,
-                reply_to=sent.id,
+            # reply на только что отправленный документ, но с тем же top_msg_id
+            extra_reply_ctx = None
+            if reply_ctx:
+                extra_reply_ctx = reply_ctx.__class__(
+                    reply_to_msg_id=sent.id,
+                    top_msg_id=getattr(reply_ctx, "top_msg_id", None),
+                )
+
+            await send_text(
+                chat_id=target_chat,
+                text=extra_text,
+                entities=extra_entities,
+                reply_ctx=extra_reply_ctx,
             )
 
         return sent

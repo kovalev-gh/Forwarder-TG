@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Literal
+from typing import Literal, Optional
 
 from core.client import client
 from core.logger import logger
@@ -62,12 +62,14 @@ def _save_state(state: dict) -> None:
 async def get_or_create_anchor(
     target_chat: int,
     anchor_type: AnchorType,
+    target_topic_id: Optional[int] = None,  # ← ДОБАВИЛИ
 ) -> int:
     """
     Возвращает message_id служебного anchor-сообщения.
 
     Anchor:
     - привязан к target_chat
+    - привязан к target_topic_id (если задан), чтобы anchor создавался в нужной теме
     - различается по типу: reply / quote
     - хранится в runtime/state.json
 
@@ -77,7 +79,9 @@ async def get_or_create_anchor(
     state = _load_state()
 
     anchors_root = state.setdefault("anchors", {})
-    chat_key = str(target_chat)
+
+    # ВАЖНО: разделяем anchors по чату И по теме, иначе anchor из General будет ломать replies в topic.
+    chat_key = f"{target_chat}:{target_topic_id or 0}"  # ← ИЗМЕНИЛИ
     chat_anchors = anchors_root.setdefault(chat_key, {})
 
     anchor_key = f"{anchor_type}_out_of_range"
@@ -95,12 +99,16 @@ async def get_or_create_anchor(
     text = ANCHOR_TEXTS[anchor_type]
 
     logger.info(
-        f"Creating {anchor_type} anchor for target chat {target_chat}"
+        f"Creating {anchor_type} anchor for target chat {target_chat} "
+        f"(topic={target_topic_id or 0})"
     )
 
+    # Если target_topic_id задан — создаём anchor как reply на root темы,
+    # чтобы он гарантированно оказался в этом топике, а не в General.
     sent = await client.send_message(
         target_chat,
         text,
+        reply_to=target_topic_id if target_topic_id else None,  # ← ДОБАВИЛИ
     )
 
     chat_anchors[anchor_key] = sent.id

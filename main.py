@@ -12,13 +12,15 @@ async def main():
     validate_settings()
 
     async with client:
-        source_entity, source_post_id = await resolve_source(SOURCE)
-        target_entity = await resolve_target(TARGET)
+        source_entity, source_post_id, source_topic_id = await resolve_source(SOURCE)  # ← ИЗМЕНИЛИ
+        target_entity, target_topic_id = await resolve_target(TARGET)
 
         await forward_history(
             source_chat=source_entity,
             target_chat=target_entity,
-            source_post_id=source_post_id,  # ← передаём ID поста
+            source_post_id=source_post_id,
+            target_topic_id=target_topic_id,
+            source_topic_id=source_topic_id,  # ← ДОБАВИЛИ
         )
 
 

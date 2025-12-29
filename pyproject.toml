@@ -1,10 +1,12 @@
 [project]
-name = "tg-bot"
+name = "Forvarder-TG"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "cryptg>=0.5.2",
     "pillow>=12.0.0",
+    "python-dotenv>=1.2.1",
     "telethon>=1.42.0",
 ]

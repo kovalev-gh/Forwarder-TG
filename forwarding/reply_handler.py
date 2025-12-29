@@ -1,3 +1,8 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Optional, Tuple, List
+
 from core.ids_map import id_map
 from config.settings import FORWARD_MODE
 
@@ -14,43 +19,76 @@ from core.reply_anchor import get_or_create_anchor
 # -------------------------------------------------
 OUT_OF_RANGE_QUOTE_TEXT = (
     "Цитата из поста или сообщения, "
-    "которое было опубликованного ранее выбранного диапазона"
+    "которое было опубликовано ранее выбранного диапазона"
 )
 
 
-async def handle_reply(msg, public_cid, target_chat):
+# -------------------------------------------------
+# REPLY CONTEXT
+# -------------------------------------------------
+@dataclass
+class ReplyCtx:
+    """
+    Контекст для корректной отправки reply в forum topics.
+
+    reply_to_msg_id:
+      - новый message_id родителя в target (если он был в диапазоне и уже отправлен)
+      - либо anchor_id (если используете anchors)
+      - либо None (если reply нужно игнорировать)
+
+    top_msg_id:
+      - topic_id / message_id root-топика в target, если пересылаете в forum topic
+      - нужен, чтобы Telegram не "уронил" сообщения в General.
+    """
+    reply_to_msg_id: Optional[int] = None
+    top_msg_id: Optional[int] = None
+
+
+async def handle_reply(
+    msg,
+    public_cid,
+    target_chat,
+    target_topic_id: Optional[int] = None,
+) -> Tuple[ReplyCtx, str, List]:
     """
     Обработка reply / quote.
 
     Итоговая логика:
 
-    1) Нет reply → ничего не делаем
+    1) Нет reply:
+        - возвращаем ReplyCtx(reply_to_msg_id=None, top_msg_id=target_topic_id)
+          → сообщение пойдёт в указанный topic, но не будет reply.
     2) Есть QUOTE:
-        - оригинал в диапазоне → обычная цитата
+        - оригинал в диапазоне → честная цитата с ссылкой на пересланный пост
         - оригинал ВНЕ диапазона → подменённая цитата + anchor
-        - НИКОГДА не делаем reply
+        - НИКОГДА не делаем reply (reply_to_msg_id=None)
     3) Обычный reply:
-        - оригинал в диапазоне → честный reply
+        - оригинал в диапазоне → reply_to_msg_id = id пересланного родителя в target
         - оригинал ВНЕ диапазона:
-            - FORWARD_MODE == "all" → игнорируем
-            - иначе → reply на anchor
+            - FORWARD_MODE == "all" → игнорируем reply (reply_to_msg_id=None)
+            - иначе → reply_to_msg_id = anchor_id
     """
 
-    reply_new_id = None
+    # По умолчанию: знаем только topicID (если задан), но не делаем никакого reply.
+    reply_ctx = ReplyCtx(reply_to_msg_id=None, top_msg_id=target_topic_id)
     quote_text = ""
-    quote_entities = []
+    quote_entities: List = []
 
     # -------------------------------------------------
     # NO REPLY
     # -------------------------------------------------
     if not msg.reply_to:
-        return reply_new_id, quote_text, quote_entities
+        # Просто сообщение в топике.
+        # media_sender возьмёт reply_to_msg_id=None и top_msg_id=target_topic_id,
+        # и отправит как reply к root-топика (или без reply, если topicID не задан).
+        return reply_ctx, quote_text, quote_entities
 
     rh = msg.reply_to
-    orig_id = rh.reply_to_msg_id
+    orig_id = getattr(rh, "reply_to_msg_id", None)
 
     if not orig_id:
-        return reply_new_id, quote_text, quote_entities
+        # reply-объект есть, но без конкретного message_id — считаем, что это "без reply".
+        return reply_ctx, quote_text, quote_entities
 
     # =================================================
     # 1. QUOTE LOGIC (ВСЕГДА ПЕРВИЧНА)
@@ -59,8 +97,8 @@ async def handle_reply(msg, public_cid, target_chat):
         # ---------------------------------------------
         # 1.1 ОРИГИНАЛ В ДИАПАЗОНЕ → ЧЕСТНАЯ ЦИТАТА
         # ---------------------------------------------
-        if orig_id in id_map and rh.quote_text:
-            qt = rh.quote_text.strip()
+        if orig_id in id_map and getattr(rh, "quote_text", None):
+            qt = (rh.quote_text or "").strip()
 
             if qt:
                 quote_text = f"{qt}\n"
@@ -80,7 +118,8 @@ async def handle_reply(msg, public_cid, target_chat):
                 ]
 
             # ⛔️ при quote НИКОГДА не делаем reply
-            return None, quote_text, quote_entities
+            reply_ctx.reply_to_msg_id = None
+            return reply_ctx, quote_text, quote_entities
 
         # ---------------------------------------------
         # 1.2 ОРИГИНАЛ ВНЕ ДИАПАЗОНА → ПОДМЕНЁННАЯ ЦИТАТА
@@ -88,6 +127,7 @@ async def handle_reply(msg, public_cid, target_chat):
         anchor_id = await get_or_create_anchor(
             target_chat,
             "quote",
+            target_topic_id=target_topic_id,
         )
 
         qt = OUT_OF_RANGE_QUOTE_TEXT
@@ -108,7 +148,8 @@ async def handle_reply(msg, public_cid, target_chat):
         ]
 
         # ⛔️ при quote НИКОГДА не делаем reply
-        return None, quote_text, quote_entities
+        reply_ctx.reply_to_msg_id = None
+        return reply_ctx, quote_text, quote_entities
 
     # =================================================
     # 2. ORDINARY REPLY (НЕ ЦИТАТА)
@@ -117,16 +158,21 @@ async def handle_reply(msg, public_cid, target_chat):
     # 2.1 ОРИГИНАЛ В ДИАПАЗОНЕ → ЧЕСТНЫЙ REPLY
     # ---------------------------------------------
     if orig_id in id_map:
-        reply_new_id = id_map[orig_id]
-        return reply_new_id, quote_text, quote_entities
+        reply_ctx.reply_to_msg_id = id_map[orig_id]
+        return reply_ctx, quote_text, quote_entities
 
     # ---------------------------------------------
     # 2.2 ОРИГИНАЛ ВНЕ ДИАПАЗОНА → FALLBACK
     # ---------------------------------------------
     if FORWARD_MODE != "all":
-        reply_new_id = await get_or_create_anchor(
+        # Ответ на anchor в том же чате/топике.
+        reply_ctx.reply_to_msg_id = await get_or_create_anchor(
             target_chat,
             "reply",
+            target_topic_id=target_topic_id,
         )
+    else:
+        # Игнорируем reply, оставляем только привязку к topicID (если есть).
+        reply_ctx.reply_to_msg_id = None
 
-    return reply_new_id, quote_text, quote_entities
+    return reply_ctx, quote_text, quote_entities

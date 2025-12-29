@@ -9,7 +9,14 @@ from core.ids_map import id_map
 from core.logger import logger, tag
 
 
-async def handle_sticker(msg, final_text, final_entities, reply_to, target_chat):
+async def handle_sticker(
+    msg,
+    final_text,
+    final_entities,
+    reply_ctx,
+    target_chat,
+    target_topic_id=None,  # ← оставили для совместимости
+):
     """
     Корректная пересылка стикера так, чтобы Telegram показывал кнопку
     'Добавить набор'.
@@ -34,12 +41,19 @@ async def handle_sticker(msg, final_text, final_entities, reply_to, target_chat)
         file_reference=doc.file_reference,
     )
 
+    # send_file принимает reply_to только как int, поэтому берём:
+    # - reply на конкретного родителя (если есть)
+    # - иначе reply на корень темы (если это forum topic)
+    send_reply_to = None
+    if reply_ctx:
+        send_reply_to = reply_ctx.reply_to_msg_id or reply_ctx.top_msg_id
+
     sent = await client.send_file(
         target_chat,
         input_doc,
         caption=final_text,
         formatting_entities=final_entities,
-        reply_to=reply_to,
+        reply_to=send_reply_to,
     )
 
     if sent:

@@ -89,7 +89,8 @@ async def _yield_post_by_id(client, source_peer, post_id: int) -> AsyncIterator[
 async def iter_posts(
     client,
     source_peer,
-    post_id: Optional[int] = None,   # ← msg_id из resolve_source(SOURCE)
+    post_id: Optional[int] = None,        # ← msg_id из resolve_source(SOURCE)
+    source_topic_id: Optional[int] = None, # ← ДОБАВИЛИ (topic/thread id для forum)
 ) -> AsyncIterator[Post]:
     """
     Итератор постов (streaming):
@@ -108,7 +109,7 @@ async def iter_posts(
         mode = "all"
 
     if DEBUG_FILTERS:
-        logger.debug(f"[FILTERS] mode={mode} post_id={post_id}")
+        logger.debug(f"[FILTERS] mode={mode} post_id={post_id} source_topic_id={source_topic_id}")
 
     # --------------------------------------------------
     # POST_ID MODE — ранний выход
@@ -143,12 +144,14 @@ async def iter_posts(
         current_gid = None
         album_buf: List[Message] = []
 
-        # ВАЖНО: reverse=False => новые → старые
-        async for msg in client.iter_messages(
-            source_peer,
-            reverse=False,
-            limit=None,
-        ):
+        iter_kwargs = {
+            "reverse": False,  # новые → старые
+            "limit": None,
+        }
+        if source_topic_id:
+            iter_kwargs["reply_to"] = source_topic_id  # ← ДОБАВИЛИ
+
+        async for msg in client.iter_messages(source_peer, **iter_kwargs):
             if isinstance(msg, MessageService):
                 continue
 
@@ -195,11 +198,14 @@ async def iter_posts(
     current_gid = None
     album_buf: List[Message] = []
 
-    async for msg in client.iter_messages(
-        source_peer,
-        reverse=True,   # старые → новые
-        limit=None,
-    ):
+    iter_kwargs = {
+        "reverse": True,  # старые → новые
+        "limit": None,
+    }
+    if source_topic_id:
+        iter_kwargs["reply_to"] = source_topic_id  # ← ДОБАВИЛИ
+
+    async for msg in client.iter_messages(source_peer, **iter_kwargs):
         if isinstance(msg, MessageService):
             continue
 

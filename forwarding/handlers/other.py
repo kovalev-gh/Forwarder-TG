@@ -1,9 +1,16 @@
-from core.client import client
 from core.ids_map import id_map
 from core.logger import logger, tag
+from forwarding.media_sender import send_text  # ← ДОБАВИЛИ
 
 
-async def handle_other(msg, final_text, final_entities, reply_to, target_chat):
+async def handle_other(
+    msg,
+    final_text,
+    final_entities,
+    reply_ctx,
+    target_chat,
+    target_topic_id=None,  # ← оставили для совместимости
+):
     """
     Заглушка для неподдерживаемых типов сообщений.
 
@@ -19,11 +26,11 @@ async def handle_other(msg, final_text, final_entities, reply_to, target_chat):
         + "⚠ Неподдерживаемый тип данных"
     )
 
-    sent = await client.send_message(
-        target_chat,
-        text,
-        formatting_entities=final_entities,
-        reply_to=reply_to,
+    sent = await send_text(
+        chat_id=target_chat,
+        text=text,
+        entities=final_entities,
+        reply_ctx=reply_ctx,
     )
 
     if sent:

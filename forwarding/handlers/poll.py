@@ -5,7 +5,14 @@ from core.logger import logger, tag
 from forwarding.media_sender import send_poll
 
 
-async def handle_poll(msg, final_text, final_entities, reply_to, target_chat):
+async def handle_poll(
+    msg,
+    final_text,
+    final_entities,
+    reply_ctx,  # ← было reply_to
+    target_chat,
+    target_topic_id=None,  # ← оставили для совместимости, но используем reply_ctx
+):
     """
     Обработчик опросов (polls).
     Пересобирает опрос и отправляет его корректно в target_chat.
@@ -24,7 +31,7 @@ async def handle_poll(msg, final_text, final_entities, reply_to, target_chat):
         poll=poll,
         caption=final_text,
         entities=final_entities,
-        reply_to=reply_to,
+        reply_ctx=reply_ctx,  # ← было reply_to=...
     )
 
     if sent:

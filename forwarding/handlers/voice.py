@@ -6,7 +6,7 @@ from core.ids_map import id_map
 from core.client import client
 from core.logger import logger, tag
 
-from forwarding.media_sender import send_voice
+from forwarding.media_sender import send_voice  # extra_text оставляем через client.send_message
 
 from utils.media import (
     is_media_spoiler,
@@ -19,7 +19,14 @@ from utils.caption_policy import apply_caption_policy
 from config.settings import DOWNLOAD_DIR, DELETE_FILES_AFTER_SEND
 
 
-async def handle_voice(msg, final_text, final_entities, reply_to, target_chat):
+async def handle_voice(
+    msg,
+    final_text,
+    final_entities,
+    reply_ctx,
+    target_chat,
+    target_topic_id=None,  # ← оставили для совместимости
+):
     """
     Обработчик VOICE сообщений (.ogg, opus).
 
@@ -128,7 +135,7 @@ async def handle_voice(msg, final_text, final_entities, reply_to, target_chat):
             original_name=media.original_name,
             caption=caption,
             entities=caption_entities,
-            reply_to=reply_to,
+            reply_ctx=reply_ctx,
             spoiler=spoiler,
             duration=duration,
         )

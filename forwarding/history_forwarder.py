@@ -42,7 +42,13 @@ from forwarding.handlers.media_utils import (
 SEND_DELAY = 0.2
 
 
-async def forward_history(source_chat, target_chat, source_post_id=None):
+async def forward_history(
+    source_chat,
+    target_chat,
+    source_post_id=None,
+    target_topic_id=None,   # нужно для forum topics (куда постить)
+    source_topic_id=None,   # ← ДОБАВИЛИ (откуда читать, если SOURCE указывает topic)
+):
     logger.info("🚀 FORWARD │ history started")
 
     target_ent = await client.get_entity(target_chat)
@@ -76,7 +82,12 @@ async def forward_history(source_chat, target_chat, source_post_id=None):
     # =========================================================
     # MAIN LOOP — ITERATE POSTS, NOT MESSAGES
     # =========================================================
-    async for post in iter_posts(client, source_chat, post_id=source_post_id):
+    async for post in iter_posts(
+        client,
+        source_chat,
+        post_id=source_post_id,
+        source_topic_id=source_topic_id,  # ← ДОБАВИЛИ
+    ):
         # -----------------------------------------------------
         # STOP PREPARING SPINNER BEFORE FIRST REAL SEND
         # -----------------------------------------------------
@@ -100,6 +111,7 @@ async def forward_history(source_chat, target_chat, source_post_id=None):
                     public_cid,
                     album_counter,
                     target_chat,
+                    target_topic_id=target_topic_id,  # ← ДОБАВИЛИ (ВАЖНО для topic)
                 )
                 continue
 
@@ -114,10 +126,11 @@ async def forward_history(source_chat, target_chat, source_post_id=None):
             # -------------------------------------------------
             # REPLY / QUOTE / ANCHOR
             # -------------------------------------------------
-            reply_new_id, quote_text, quote_entities = await handle_reply(
+            reply_ctx, quote_text, quote_entities = await handle_reply(
                 msg,
                 public_cid,
                 target_chat,
+                target_topic_id=target_topic_id,  # ← ВАЖНО: прокидываем topic id
             )
 
             # -------------------------------------------------
@@ -141,8 +154,9 @@ async def forward_history(source_chat, target_chat, source_post_id=None):
                     msg,
                     final_text,
                     final_entities,
-                    reply_new_id,
+                    reply_ctx,  # ← было reply_new_id
                     target_chat,
+                    target_topic_id=target_topic_id,
                 )
                 continue
 
@@ -154,8 +168,9 @@ async def forward_history(source_chat, target_chat, source_post_id=None):
                     msg,
                     final_text,
                     final_entities,
-                    reply_new_id,
+                    reply_ctx,  # ← было reply_new_id
                     target_chat,
+                    target_topic_id=target_topic_id,
                 )
                 if paid_result is None:
                     continue
@@ -171,8 +186,9 @@ async def forward_history(source_chat, target_chat, source_post_id=None):
                     msg,
                     final_text,
                     final_entities,
-                    reply_new_id,
+                    reply_ctx,  # ← было reply_new_id
                     target_chat,
+                    target_topic_id=target_topic_id,
                 )
                 continue
 
@@ -184,8 +200,9 @@ async def forward_history(source_chat, target_chat, source_post_id=None):
                     msg,
                     final_text,
                     final_entities,
-                    reply_new_id,
+                    reply_ctx,  # ← было reply_new_id
                     target_chat,
+                    target_topic_id=target_topic_id,
                 )
                 continue
 
@@ -197,8 +214,9 @@ async def forward_history(source_chat, target_chat, source_post_id=None):
                     msg,
                     final_text,
                     final_entities,
-                    reply_new_id,
+                    reply_ctx,  # ← было reply_new_id
                     target_chat,
+                    target_topic_id=target_topic_id,
                 )
                 continue
 
@@ -211,8 +229,9 @@ async def forward_history(source_chat, target_chat, source_post_id=None):
                     msg,
                     final_text,
                     final_entities,
-                    reply_new_id,
+                    reply_ctx,  # ← было reply_new_id
                     target_chat,
+                    target_topic_id=target_topic_id,
                 )
                 continue
 
@@ -224,8 +243,9 @@ async def forward_history(source_chat, target_chat, source_post_id=None):
                     msg,
                     final_text,
                     final_entities,
-                    reply_new_id,
+                    reply_ctx,  # ← было reply_new_id
                     target_chat,
+                    target_topic_id=target_topic_id,
                 )
                 continue
 
@@ -237,8 +257,9 @@ async def forward_history(source_chat, target_chat, source_post_id=None):
                     msg,
                     final_text,
                     final_entities,
-                    reply_new_id,
+                    reply_ctx,  # ← было reply_new_id
                     target_chat,
+                    target_topic_id=target_topic_id,
                 )
                 if sent:
                     continue
@@ -251,8 +272,9 @@ async def forward_history(source_chat, target_chat, source_post_id=None):
                     msg,
                     final_text,
                     final_entities,
-                    reply_new_id,
+                    reply_ctx,  # ← было reply_new_id
                     target_chat,
+                    target_topic_id=target_topic_id,
                 )
                 continue
 
@@ -263,8 +285,9 @@ async def forward_history(source_chat, target_chat, source_post_id=None):
                 msg,
                 final_text,
                 final_entities,
-                reply_new_id,
+                reply_ctx,  # ← было reply_new_id
                 target_chat,
+                target_topic_id=target_topic_id,
             )
 
         # =====================================================

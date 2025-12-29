@@ -2,7 +2,7 @@ import os
 
 from core.ids_map import id_map
 from core.client import client
-from forwarding.media_sender import send_photo
+from forwarding.media_sender import send_photo, send_text  # ← ДОБАВИЛИ send_text
 
 from core.logger import logger, tag
 
@@ -17,7 +17,14 @@ from utils.caption_policy import apply_caption_policy
 from config.settings import DOWNLOAD_DIR, DELETE_FILES_AFTER_SEND
 
 
-async def handle_photo(msg, final_text, final_entities, reply_to, target_chat):
+async def handle_photo(
+    msg,
+    final_text,
+    final_entities,
+    reply_ctx,
+    target_chat,
+    target_topic_id=None,  # ← оставили для совместимости
+):
     """
     Обработчик PHOTO.
 
@@ -98,7 +105,7 @@ async def handle_photo(msg, final_text, final_entities, reply_to, target_chat):
             original_name=media.original_name,
             caption=caption,
             entities=caption_entities,
-            reply_to=reply_to,
+            reply_ctx=reply_ctx,
             spoiler=spoiler,
         )
 
@@ -113,11 +120,18 @@ async def handle_photo(msg, final_text, final_entities, reply_to, target_chat):
         # SEND EXTRA TEXT BELOW (IF ANY)
         # -------------------------------------------------
         if sent and extra_text:
-            await client.send_message(
-                target_chat,
-                extra_text,
-                formatting_entities=extra_entities,
-                reply_to=sent.id,
+            extra_reply_ctx = None
+            if reply_ctx:
+                extra_reply_ctx = reply_ctx.__class__(
+                    reply_to_msg_id=sent.id,
+                    top_msg_id=getattr(reply_ctx, "top_msg_id", None),
+                )
+
+            await send_text(
+                chat_id=target_chat,
+                text=extra_text,
+                entities=extra_entities,
+                reply_ctx=extra_reply_ctx,
             )
 
         return sent

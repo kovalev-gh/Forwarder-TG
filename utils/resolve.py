@@ -33,11 +33,12 @@ async def _find_entity_in_dialogs(peer):
 # =========================================================
 async def resolve_source(source):
     """
-    SOURCE → (entity, message_id)
+    SOURCE → (entity, message_id, topic_id)
 
     SOURCE может быть:
-      - ссылкой на канал
+      - ссылкой на канал/чат
       - ссылкой на конкретное сообщение
+      - ссылкой на сообщение внутри topic (forum)
 
     Формат SOURCE уже валиден (validate_settings).
     """
@@ -48,26 +49,19 @@ async def resolve_source(source):
 
     peer = parsed.peer
     msg_id = parsed.message_id
+    topic_id = parsed.topic_id  # ← ДОБАВИЛИ
 
     # 1️⃣ пробуем напрямую
     try:
         entity = await client.get_entity(peer)
-        #logger.info(
-        #    "📌 SOURCE resolved │ "
-        #    f"peer={peer} message_id={msg_id}"
-        #)
-        return entity, msg_id
+        return entity, msg_id, topic_id  # ← ИЗМЕНИЛИ
     except Exception:
         pass
 
     # 2️⃣ fallback: ищем в диалогах
     entity = await _find_entity_in_dialogs(peer)
     if entity:
-        #logger.info(
-        #   "📌 SOURCE resolved from dialogs │ "
-        #    f"peer={peer} message_id={msg_id}"
-        #)
-        return entity, msg_id
+        return entity, msg_id, topic_id  # ← ИЗМЕНИЛИ
 
     # 3️⃣ честная runtime-ошибка
     raise RuntimeError(
@@ -84,39 +78,22 @@ async def resolve_source(source):
 # TARGET RESOLVE
 # =========================================================
 async def resolve_target(target):
-    """
-    TARGET → entity (Channel / Chat)
-
-    TARGET может быть:
-      - ссылкой на канал
-      - ссылкой на сообщение (message_id игнорируется)
-    """
-
     parsed: TgLink = parse_tme_link(target)
     if not parsed:
         raise RuntimeError(f"Invalid TARGET: {target}")
 
     peer = parsed.peer
+    topic_id = parsed.topic_id  # ← ДОБАВИЛИ
 
-    # 1️⃣ пробуем напрямую
     try:
         entity = await client.get_entity(peer)
-        #logger.info(
-        #    "🎯 TARGET resolved │ "
-        #    f"peer={peer}"
-        #)
-        return entity
+        return entity, topic_id  # ← ИЗМЕНИЛИ
     except Exception:
         pass
 
-    # 2️⃣ fallback: ищем в диалогах
     entity = await _find_entity_in_dialogs(peer)
     if entity:
-        #logger.info(
-        #    "🎯 TARGET resolved from dialogs │ "
-        #    f"peer={peer}"
-        #)
-        return entity
+        return entity, topic_id  # ← ИЗМЕНИЛИ
 
     # 3️⃣ честная runtime-ошибка
     raise RuntimeError(

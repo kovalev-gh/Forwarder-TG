@@ -18,6 +18,7 @@ from core.progress import make_progress
 
 from forwarding.message_builder import build_final_text
 from forwarding.reply_handler import handle_reply
+
 from forwarding.handlers.media_utils import detect_media_kind
 
 from utils.caption_policy import apply_caption_policy
@@ -29,7 +30,13 @@ from utils.media import (
 )
 
 
-async def forward_album(group_msgs, public_cid, album_no: int, target_chat):
+async def forward_album(
+    group_msgs,
+    public_cid,
+    album_no: int,
+    target_chat,
+    target_topic_id=None,
+):
     """
     Пересылает grouped_id как альбом.
 
@@ -49,10 +56,11 @@ async def forward_album(group_msgs, public_cid, album_no: int, target_chat):
     group_msgs = sorted(group_msgs, key=lambda m: m.id)
     caption_msg = next((m for m in group_msgs if m.message), group_msgs[-1])
 
-    reply_new_id, quote_text, quote_entities = await handle_reply(
+    reply_ctx, quote_text, quote_entities = await handle_reply(
         caption_msg,
         public_cid,
         target_chat,
+        target_topic_id=target_topic_id,
     )
 
     text_data = await build_final_text(
@@ -118,6 +126,16 @@ async def forward_album(group_msgs, public_cid, album_no: int, target_chat):
 
         caption_attached = True
         return caption_target.id
+
+    # -------------------------------------------------
+    # helper: reply_to for send_file (int)
+    # -------------------------------------------------
+    def _base_reply_to_from_ctx():
+        if not reply_ctx:
+            return None
+        return reply_ctx.reply_to_msg_id or reply_ctx.top_msg_id
+
+    base_reply_to = _base_reply_to_from_ctx()
 
     # -------------------------------------------------
     # 3. PHOTO + VIDEO ALBUM
@@ -203,7 +221,7 @@ async def forward_album(group_msgs, public_cid, album_no: int, target_chat):
                 target_chat,
                 upload_paths,
                 caption="",
-                reply_to=reply_new_id,
+                reply_to=base_reply_to,
                 supports_streaming=True,
             )
 
@@ -306,7 +324,7 @@ async def forward_album(group_msgs, public_cid, album_no: int, target_chat):
                 target_chat,
                 upload_paths,
                 caption="",
-                reply_to=reply_new_id,
+                reply_to=base_reply_to,
                 force_document=True,
             )
 
